@@ -78,6 +78,12 @@ def fit(d: ImageDraw.ImageDraw, text: str, max_w: int, size: int) -> ImageFont.F
     return display(size)
 
 
+def fit_script(d: ImageDraw.ImageDraw, text: str, max_w: int, size: int) -> ImageFont.FreeTypeFont:
+    while size > 24 and d.textlength(text, font=script(size)) > max_w:
+        size -= 2
+    return script(size)
+
+
 def text_right(d: ImageDraw.ImageDraw, right: int, y: int, text: str, f, fill) -> None:
     d.text((right - d.textlength(text, font=f), y), text, font=f, fill=fill)
 
@@ -93,8 +99,8 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
         paste(img, logo, (W - logo.width) // 2, top)
         y = top + logo.height + 50
         d.line((W // 2 - 30, y, W // 2 + 30, y), fill=BLACK, width=1)
-        f = script(58)
-        d.text((W / 2 - d.textlength(subtitle, font=f) / 2, y + 22), subtitle, font=f, fill=GRAY)
+        f = fit_script(d, subtitle, W - 160, 60)
+        d.text((W / 2 - d.textlength(subtitle, font=f) / 2, y + 18), subtitle, font=f, fill=GRAY)
         d.text((W / 2 - d.textlength("@SSWAG_STUDIO", font=small) / 2, H - 70), "@SSWAG_STUDIO", font=small, fill=GRAY)
         return img
 
@@ -122,7 +128,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
     d.text((72, y), title, font=f, fill=BLACK)
     y = box[3] + 34
     d.line((76, y, 136, y), fill=BLACK, width=2)
-    d.text((76, y + 14), subtitle, font=script(62), fill=GRAY)
+    d.text((76, y + 10), subtitle, font=fit_script(d, subtitle, W - 160, 64), fill=GRAY)
 
     # низ
     d.line((72, H - 92, W - 72, H - 92), fill=LINE, width=1)
