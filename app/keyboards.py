@@ -7,6 +7,8 @@ SERVICES = {
     "render": "🧊 Рендер",
     "art": "🎨 Арт",
     "montage": "🎬 Монтаж",
+    "skin": "👕 Скин",
+    "figure": "🗿 Фигура (Figure Mod)",
     "other": "✨ Другое",
 }
 
