@@ -3,7 +3,7 @@
 
 Шрифты (папка fonts/):
   SwagDisplay.ttf       — свой широкий наклонный, как «SW» — заголовки и подписи
-  BadScript-Regular.ttf — рукописный Bad Script (Google Fonts, лицензия OFL) — подзаголовки
+  Manrope.ttf           — Manrope Light (Google Fonts, лицензия OFL) — подзаголовки
 
 Запуск: python generate_images.py  ->  картинки появятся в папке images/
 """
@@ -16,7 +16,7 @@ BASE = Path(__file__).parent
 OUT = BASE / "images"
 LOGO = BASE / "assets" / "logo.png"
 DISPLAY = BASE / "fonts" / "SwagDisplay.ttf"
-SCRIPT = BASE / "fonts" / "BadScript-Regular.ttf"
+SUBTITLE = BASE / "fonts" / "Manrope.ttf"
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -47,8 +47,10 @@ def display(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(DISPLAY), size)
 
 
-def script(size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(str(SCRIPT), size)
+def subtitle_font(size: int) -> ImageFont.FreeTypeFont:
+    f = ImageFont.truetype(str(SUBTITLE), size)
+    f.set_variation_by_name("Light")  # Manrope — вариативный шрифт, берём начертание Light
+    return f
 
 
 def load_logo() -> Image.Image:
@@ -78,10 +80,10 @@ def fit(d: ImageDraw.ImageDraw, text: str, max_w: int, size: int) -> ImageFont.F
     return display(size)
 
 
-def fit_script(d: ImageDraw.ImageDraw, text: str, max_w: int, size: int) -> ImageFont.FreeTypeFont:
-    while size > 24 and d.textlength(text, font=script(size)) > max_w:
+def fit_subtitle(d: ImageDraw.ImageDraw, text: str, max_w: int, size: int) -> ImageFont.FreeTypeFont:
+    while size > 20 and d.textlength(text, font=subtitle_font(size)) > max_w:
         size -= 2
-    return script(size)
+    return subtitle_font(size)
 
 
 def text_right(d: ImageDraw.ImageDraw, right: int, y: int, text: str, f, fill) -> None:
@@ -99,7 +101,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
         paste(img, logo, (W - logo.width) // 2, top)
         y = top + logo.height + 50
         d.line((W // 2 - 30, y, W // 2 + 30, y), fill=BLACK, width=1)
-        f = fit_script(d, subtitle, W - 160, 44)
+        f = fit_subtitle(d, subtitle, W - 160, 32)
         d.text((W / 2 - d.textlength(subtitle, font=f) / 2, y + 18), subtitle, font=f, fill=GRAY)
         d.text((W / 2 - d.textlength("@SSWAG_STUDIO", font=small) / 2, H - 70), "@SSWAG_STUDIO", font=small, fill=GRAY)
         return img
@@ -128,7 +130,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
     d.text((72, y), title, font=f, fill=BLACK)
     y = box[3] + 34
     d.line((76, y, 136, y), fill=BLACK, width=2)
-    d.text((76, y + 10), subtitle, font=fit_script(d, subtitle, W - 160, 46), fill=GRAY)
+    d.text((76, y + 10), subtitle, font=fit_subtitle(d, subtitle, W - 160, 34), fill=GRAY)
 
     # низ
     d.line((72, H - 92, W - 72, H - 92), fill=LINE, width=1)

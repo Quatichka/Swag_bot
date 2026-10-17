@@ -81,8 +81,8 @@ python bot.py
 (двойной клик → «Установить») и использовать в Photoshop, Figma и т.д.
 
 - `SwagDisplay.ttf` — широкий жирный наклонный, как «SW». Только прописные, латиница + кириллица + цифры.
-- `BadScript-Regular.ttf` — рукописный [Bad Script](https://fonts.google.com/specimen/Bad+Script) для подзаголовков,
-  бесплатный, в том числе для коммерции (лицензия OFL, `fonts/BadScript-OFL.txt`).
+- `Manrope.ttf` — [Manrope](https://fonts.google.com/specimen/Manrope), начертание Light, для подзаголовков;
+  бесплатный, в том числе для коммерции (лицензия OFL, `fonts/Manrope-OFL.txt`).
 
 SWAG Display генерируется кодом: буквы описаны в `fonts/build_display.py`.
 Пересобрать после правок (нужен `pip install fonttools`):
