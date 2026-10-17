@@ -10,4 +10,4 @@ async def render(order: db.Order, in_group: bool) -> tuple[str, InlineKeyboardMa
     need = config.reject_votes if in_group else None
     voters = await db.votes(order.id) if need and order.status == "new" else []
     return (texts.admin_order_card(order, voters, need),
-            kb.admin_order(order.id, order.status, len(voters), need))
+            kb.admin_order(order.id, order.status, len(voters), need, order.pay_status))

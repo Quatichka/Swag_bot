@@ -18,6 +18,10 @@ class Config:
     db_path: Path
     images_dir: Path
     reject_votes: int  # сколько голосов в группе нужно, чтобы отклонить заказ
+    star_rate: float   # сколько рублей стоит 1 звезда Telegram (для пересчёта счёта в звёзды)
+    sbp_phone: str     # реквизиты для перевода по СБП; пустой телефон — оплата по СБП выключена
+    sbp_bank: str
+    sbp_name: str
 
     @property
     def notify_targets(self) -> tuple[int, ...]:
@@ -44,6 +48,10 @@ def load_config() -> Config:
         db_path=BASE_DIR / "data" / "orders.db",
         images_dir=BASE_DIR / "images",
         reject_votes=max(1, int(os.getenv("REJECT_VOTES", "5"))),
+        star_rate=float(os.getenv("STAR_RATE", "1.5").replace(",", ".")),
+        sbp_phone=os.getenv("SBP_PHONE", "").strip(),
+        sbp_bank=os.getenv("SBP_BANK", "").strip(),
+        sbp_name=os.getenv("SBP_NAME", "").strip(),
     )
 
 

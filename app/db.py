@@ -56,6 +56,17 @@ class Order:
     created_at: str
     assignee_id: int | None = None    # кто взял заказ — только он может дальше с ним работать
     assignee_name: str | None = None
+    price_rub: int | None = None      # сумма счёта
+    price_stars: int | None = None    # та же сумма в звёздах Telegram
+    pay_status: str = "none"          # none | invoiced | claimed (клиент сообщил об оплате по СБП) | paid
+    pay_method: str | None = None     # stars | sbp
+    pay_charge_id: str | None = None  # id платежа Telegram (для возврата звёзд)
+
+    @property
+    def pay_label(self) -> str:
+        if self.pay_status == "paid":
+            return "💰 Оплачен " + ("звёздами" if self.pay_method == "stars" else "по СБП")
+        return {"invoiced": "💳 Ждёт оплаты", "claimed": "⏳ Оплата по СБП на проверке"}.get(self.pay_status, "")
 
     @property
     def status_label(self) -> str:
@@ -77,8 +88,11 @@ async def init_db() -> None:
         columns = {row[1] for row in await cur.fetchall()}
         if "assignee_id" not in columns:
             await db.execute("ALTER TABLE orders ADD COLUMN assignee_id INTEGER")
-        if "assignee_name" not in columns:
-            await db.execute("ALTER TABLE orders ADD COLUMN assignee_name TEXT")
+        for column, ddl in (("assignee_name", "TEXT"), ("price_rub", "INTEGER"), ("price_stars", "INTEGER"),
+                            ("pay_status", "TEXT NOT NULL DEFAULT 'none'"), ("pay_method", "TEXT"),
+                            ("pay_charge_id", "TEXT")):
+            if column not in columns:
+                await db.execute(f"ALTER TABLE orders ADD COLUMN {column} {ddl}")
         await db.commit()
 
 
@@ -136,6 +150,34 @@ async def release(order_id: int, user_id: int) -> bool:
             " WHERE id = ? AND status = 'accepted' AND (assignee_id = ? OR assignee_id IS NULL)",
             (order_id, user_id))
         await db.execute("DELETE FROM order_votes WHERE order_id = ?", (order_id,))
+        await db.commit()
+        return cur.rowcount == 1
+
+
+async def set_invoice(order_id: int, rub: int, stars: int) -> bool:
+    """Выставляет (или меняет) счёт. Оплаченный заказ не трогаем."""
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute(
+            "UPDATE orders SET price_rub = ?, price_stars = ?, pay_status = 'invoiced', pay_method = NULL"
+            " WHERE id = ? AND pay_status != 'paid'", (rub, stars, order_id))
+        await db.commit()
+        return cur.rowcount == 1
+
+
+async def set_pay_status(order_id: int, old: str, new: str, method: str | None = None) -> bool:
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute("UPDATE orders SET pay_status = ?, pay_method = COALESCE(?, pay_method)"
+                               " WHERE id = ? AND pay_status = ?", (new, method, order_id, old))
+        await db.commit()
+        return cur.rowcount == 1
+
+
+async def mark_paid(order_id: int, method: str, charge_id: str | None = None) -> bool:
+    """Отмечает оплату. False — если заказ уже был оплачен (повторное уведомление)."""
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute(
+            "UPDATE orders SET pay_status = 'paid', pay_method = ?, pay_charge_id = COALESCE(?, pay_charge_id)"
+            " WHERE id = ? AND pay_status != 'paid'", (method, charge_id, order_id))
         await db.commit()
         return cur.rowcount == 1
 

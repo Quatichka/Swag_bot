@@ -9,7 +9,7 @@ from aiogram.types import BotCommand
 
 from app.config import config
 from app.db import init_db
-from app.handlers import admin, common, group, order
+from app.handlers import admin, common, group, order, payments
 
 
 async def main() -> None:
@@ -20,12 +20,13 @@ async def main() -> None:
     bot = Bot(config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
     # admin — первым, чтобы ответ админа клиенту не перехватили пользовательские сценарии
-    dp.include_routers(admin.router, group.router, order.router, common.router)
+    dp.include_routers(admin.router, group.router, payments.router, order.router, common.router)
 
     await bot.set_my_commands([
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="orders", description="Мои заказы"),
         BotCommand(command="cancel", description="Отменить и вернуться в меню"),
+        BotCommand(command="paysupport", description="Вопросы по оплате"),
     ])
     await bot.delete_webhook(drop_pending_updates=True)
     logging.info("SWAG Studio bot запущен")

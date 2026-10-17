@@ -126,6 +126,9 @@ def admin_order_card(order: Order, voters: list[str] | None = None, need: int | 
             escape(cut(link, 300)) for link in links[:10])
     if order.assignee_name:
         text += f"\n\n🛠 <b>Взял:</b> {escape(order.assignee_name)} — действия по заказу доступны только ему"
+    if order.price_rub:
+        stars = f" / {order.price_stars} ⭐" if order.price_stars else ""
+        text += f"\n💳 <b>Счёт:</b> {order.price_rub} ₽{stars} — {order.pay_label}"
     if order.status == "new" and need and voters:
         text += f"\n\n❌ <b>За отклонение:</b> {len(voters)}/{need} — " + ", ".join(escape(v) for v in voters)
     return text
@@ -133,7 +136,44 @@ def admin_order_card(order: Order, voters: list[str] | None = None, need: int | 
 
 def my_orders_text(orders: list[Order]) -> str:
     lines = [
-        f"<b>#{o.id}</b> · {service_label(o.service)} · {o.status_label}\n<i>{o.created_at}</i>"
+        f"<b>#{o.id}</b> · {service_label(o.service)} · {o.status_label}"
+        + (f"\n{o.pay_label} · {o.price_rub} ₽" if o.price_rub else "")
+        + f"\n<i>{o.created_at}</i>"
         for o in orders
     ]
     return "<b>📦 Мои заказы</b>\n\n" + "\n\n".join(lines)
+
+
+# ---------------------------------------------------------------- оплата
+
+def invoice_text(order: Order) -> str:
+    stars = f" или <b>{order.price_stars} ⭐</b>" if order.price_stars else ""
+    return (
+        f"<b>💳 Счёт по заказу #{order.id}</b>\n\n"
+        f"🧩 Услуга: {service_label(order.service)}\n"
+        f"💰 К оплате: <b>{order.price_rub} ₽</b>{stars}\n\n"
+        "Выбери способ оплаты 👇"
+    )
+
+
+def sbp_text(order: Order, phone: str, bank: str, name: str) -> str:
+    lines = [f"<b>🏦 Оплата по СБП · заказ #{order.id}</b>\n",
+             f"Переведи <b>{order.price_rub} ₽</b> по номеру телефона:",
+             f"📱 <code>{escape(phone)}</code>"]
+    if bank:
+        lines.append(f"🏛 Банк: {escape(bank)}")
+    if name:
+        lines.append(f"👤 Получатель: {escape(name)}")
+    lines += ["", f"В комментарии к переводу укажи: <code>Заказ #{order.id}</code>",
+              "После перевода нажми «✅ Я оплатил» — исполнитель проверит поступление."]
+    return "\n".join(lines)
+
+
+PAY_CLAIMED = ("⏳ <b>Спасибо!</b> Проверяем поступление по заказу #{order_id} — "
+               "бот напишет, как только исполнитель подтвердит оплату.")
+PAY_DONE = "✅ <b>Оплата по заказу #{order_id} получена!</b>\n\nСпасибо, что выбрал SWAG Studio 💋"
+PAY_NOT_FOUND = ("😔 <b>Оплата по заказу #{order_id} пока не найдена.</b>\n\n"
+                 "Проверь перевод и попробуй ещё раз или напиши менеджеру @{manager}.")
+PAY_SUPPORT = ("<b>💬 Вопросы по оплате</b>\n\n"
+               "Если с оплатой что-то пошло не так или нужен возврат — напиши менеджеру @{manager} "
+               "и укажи номер заказа.")

@@ -99,17 +99,42 @@ def after_order() -> InlineKeyboardMarkup:
     )
 
 
-def admin_order(order_id: int, status: str, votes: int = 0, need: int | None = None) -> InlineKeyboardMarkup:
+def admin_order(order_id: int, status: str, votes: int = 0, need: int | None = None,
+                pay_status: str = "none") -> InlineKeyboardMarkup:
     """Кнопки под карточкой заказа. need — сколько голосов нужно для отклонения (только в группе)."""
     reply = _btn("💬 Написать клиенту", f"adm:reply:{order_id}")
     if status == "new":
         reject = f"❌ Отклонить ({votes}/{need})" if need else "❌ Отклонить"
         return _rows([_btn("✅ Принять", f"adm:accepted:{order_id}"),
                       _btn(reject, f"adm:rejected:{order_id}")], [reply])
+    rows = []
     if status == "accepted":
-        return _rows([_btn("🏁 Выполнен", f"adm:done:{order_id}"),
-                      _btn("🔄 Передать другому", f"adm:release:{order_id}")], [reply])
-    return _rows([reply])
+        rows.append([_btn("🏁 Выполнен", f"adm:done:{order_id}"),
+                     _btn("🔄 Передать другому", f"adm:release:{order_id}")])
+    if status in ("accepted", "done") and pay_status != "paid":
+        label = "💳 Выставить счёт" if pay_status == "none" else "💳 Изменить сумму счёта"
+        rows.append([_btn(label, f"adm:invoice:{order_id}")])
+    if pay_status == "claimed":
+        rows.append([_btn("✅ Оплата пришла", f"adm:paid:{order_id}"),
+                     _btn("❌ Не пришла", f"adm:notpaid:{order_id}")])
+    rows.append([reply])
+    return _rows(*rows)
+
+
+def pay_choice(order_id: int, rub: int, stars: int | None, sbp: bool) -> InlineKeyboardMarkup:
+    """Выбор способа оплаты для клиента."""
+    rows = []
+    if stars:
+        rows.append([_btn(f"⭐ Звёздами — {stars} ⭐", f"pay:stars:{order_id}")])
+    if sbp:
+        rows.append([_btn(f"🏦 По СБП — {rub} ₽", f"pay:sbp:{order_id}")])
+    rows.append([InlineKeyboardButton(text="💬 Вопрос по оплате", url=f"https://t.me/{config.manager_username}")])
+    return _rows(*rows)
+
+
+def sbp_claim(order_id: int) -> InlineKeyboardMarkup:
+    return _rows([_btn("✅ Я оплатил", f"pay:claim:{order_id}")],
+                 [_btn("⬅️ Другой способ оплаты", f"pay:choose:{order_id}")])
 
 
 def admin_question(user_id: int) -> InlineKeyboardMarkup:

@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
-from app import cards, db, keyboards as kb, texts
+from app import billing, cards, db, keyboards as kb, texts
 from app.config import config
 from app.routing import staff_chat_id
 from app.screens import send_screen
@@ -186,6 +186,104 @@ async def release_order(call: CallbackQuery) -> None:
     await call.message.reply(
         f"🔄 <b>Заказ #{order.id} снова открыт</b>\n\n"
         f"{escape(_admin_name(call))} передал его. Кто возьмёт — жмите «✅ Принять» под карточкой.")
+
+
+# ---------- оплата ----------
+
+class AdminInvoice(StatesGroup):
+    amount = State()
+
+
+@router.callback_query(F.data.regexp(r"^adm:invoice:\d+$"))
+async def start_invoice(call: CallbackQuery, state: FSMContext) -> None:
+    order = await db.get_order(int(call.data.rsplit(":", 1)[1]))
+    if not order:
+        await call.answer("Заказ не найден", show_alert=True)
+        return
+    if _not_assignee(call, order):
+        await call.answer(f"Заказ взял {order.assignee_name} — выставить счёт может только он", show_alert=True)
+        return
+    if order.status not in ("accepted", "done") or order.pay_status == "paid":
+        await call.answer("По этому заказу счёт выставить нельзя", show_alert=True)
+        await _refresh_card(call, order)
+        return
+    await state.set_state(AdminInvoice.amount)
+    await state.update_data(invoice_order=order.id)
+    await call.answer()
+    rate = f"{config.star_rate:g}".replace(".", ",")
+    await call.message.answer(
+        f"💳 Напиши сумму счёта по заказу #{order.id} в рублях, например <code>1500</code>.\n"
+        f"Клиент сможет оплатить по СБП или звёздами (1 ⭐ = {rate} ₽).",
+        reply_markup=kb.admin_cancel())
+
+
+@router.message(AdminInvoice.amount)
+async def got_invoice_amount(message: Message, state: FSMContext, bot: Bot) -> None:
+    digits = "".join(ch for ch in (message.text or "") if ch.isdigit())
+    if not digits or not 1 <= int(digits) <= 1_000_000:
+        await message.answer("Нужна сумма в рублях числом, например <code>1500</code>.",
+                             reply_markup=kb.admin_cancel())
+        return
+    order_id = (await state.get_data())["invoice_order"]
+    await state.clear()
+    order = await db.get_order(order_id)
+    if not order or (order.assignee_id and order.assignee_id != message.from_user.id):
+        await message.answer("⛔ Выставить счёт по этому заказу может только его исполнитель.")
+        return
+
+    rub = int(digits)
+    stars = billing.stars_for(rub)
+    if not stars and not billing.sbp_enabled():
+        await message.answer("⚠️ Эту сумму нельзя оплатить звёздами, а реквизиты СБП не заданы "
+                             "(SBP_PHONE в настройках). Счёт не выставлен.")
+        return
+    if not await db.set_invoice(order.id, rub, stars or 0):
+        await message.answer(f"Заказ #{order.id} уже оплачен — счёт не изменён.")
+        return
+    order = await db.get_order(order.id)
+    try:
+        await billing.send_choice(bot, order)
+    except TelegramAPIError as e:
+        await message.answer(f"⚠️ Не удалось отправить счёт клиенту: {e.message}")
+        return
+    stars_note = f" / {stars} ⭐" if stars else " (звёздами нельзя — слишком большая сумма)"
+    await message.answer(f"✅ Счёт по заказу #{order.id} на {rub} ₽{stars_note} отправлен клиенту.")
+
+
+@router.callback_query(F.data.regexp(r"^adm:(paid|notpaid):\d+$"))
+async def confirm_sbp(call: CallbackQuery, bot: Bot) -> None:
+    _, action, order_id = call.data.split(":")
+    order = await db.get_order(int(order_id))
+    if not order:
+        await call.answer("Заказ не найден", show_alert=True)
+        return
+    if _not_assignee(call, order):
+        await call.answer(f"Заказ взял {order.assignee_name} — подтвердить оплату может только он",
+                          show_alert=True)
+        return
+    if order.pay_status != "claimed":
+        await call.answer(f"Оплата уже обработана: {order.pay_label or 'счёт не выставлен'}", show_alert=True)
+        await _refresh_card(call, order)
+        return
+
+    if action == "paid":
+        ok = await db.mark_paid(order.id, "sbp")
+        client_text = texts.PAY_DONE.format(order_id=order.id)
+        client_kb = kb.after_order()
+    else:
+        ok = await db.set_pay_status(order.id, "claimed", "invoiced")
+        client_text = texts.PAY_NOT_FOUND.format(order_id=order.id, manager=config.manager_username)
+        client_kb = kb.pay_choice(order.id, order.price_rub, order.price_stars, billing.sbp_enabled())
+    order = await db.get_order(order.id)
+    await _refresh_card(call, order)
+    if not ok:
+        await call.answer("Статус оплаты уже изменился", show_alert=True)
+        return
+    await call.answer("Оплата подтверждена" if action == "paid" else "Клиенту сообщили, что оплата не найдена")
+    try:
+        await bot.send_message(order.user_id, client_text, reply_markup=client_kb)
+    except TelegramAPIError as e:
+        log.warning("Клиент %s не получил уведомление об оплате: %s", order.user_id, e)
 
 
 # ---------- переписка с клиентом ----------
