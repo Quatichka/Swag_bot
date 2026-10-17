@@ -60,7 +60,7 @@ python bot.py
 | Список услуг, вариантов сроков и бюджета | `app/keyboards.py` (`SERVICES`, `DEADLINES`, `BUDGETS`) |
 | Картинки | `images/*.png` (1280×720, имя файла = ключ экрана) |
 | Логотип на картинках | `assets/logo.png` (чёрный на белом) |
-| Перерисовать картинки (другие тексты) | `generate_images.py` → `python generate_images.py` (нужен Windows: берёт шрифты из `C:/Windows/Fonts`) |
+| Перерисовать картинки (другие тексты) | `generate_images.py` → `python generate_images.py` (нужен Pillow) |
 
 Картинки можно заменить на свои: просто положи файл с тем же именем в `images/`.
 
@@ -74,6 +74,25 @@ python bot.py
 | `my_orders` | мои заказы |
 | `question` | вопрос студии |
 | `status_accepted` / `status_done` / `status_rejected` | уведомления о статусе |
+
+## Шрифты студии
+
+В папке `fonts/` два своих шрифта, собранных по мотивам логотипа. Их можно установить на компьютер
+(двойной клик → «Установить») и использовать в Photoshop, Figma и т.д.
+
+- `SwagDisplay.ttf` — широкий жирный наклонный, как «SW». Только прописные, латиница + кириллица + цифры.
+- `SwagScript.ttf` — тонкий рукописный, как «swag studio». Строчные, латиница + кириллица + цифры.
+
+Шрифты генерируются кодом: буквы описаны в `fonts/build_display.py` и `fonts/build_script.py`.
+Пересобрать после правок (нужен `pip install fonttools`):
+
+```bash
+python fonts/build_display.py
+```
+
+```bash
+python fonts/build_script.py
+```
 
 ## Структура
 
