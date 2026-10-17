@@ -1,6 +1,8 @@
+import logging
 from html import escape
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -8,10 +10,10 @@ from aiogram.types import CallbackQuery, Message
 
 from app import db, keyboards as kb, texts
 from app.config import config
-from app.routing import Target, deliver
 from app.screens import show
 
 router = Router(name="common")
+log = logging.getLogger(__name__)
 
 
 class Ask(StatesGroup):
@@ -66,12 +68,20 @@ async def got_question(message: Message, state: FSMContext, bot: Bot) -> None:
     user = message.from_user
     header = f"<b>❓ Новый вопрос</b>\nОт: {texts.user_link(user.id, user.full_name, user.username)}"
 
-    async def send(t: Target) -> None:
-        await bot.send_message(t.chat_id, header, message_thread_id=t.thread_id)
-        await message.copy_to(t.chat_id, message_thread_id=t.thread_id,
-                              reply_markup=kb.admin_question(user.id))
-
-    await deliver("questions", send)
+    # вопрос уходит каждому админу в личку, ответ — кнопкой «Ответить» под сообщением
+    delivered = 0
+    for admin_id in config.admin_ids:
+        try:
+            await bot.send_message(admin_id, header)
+            await message.copy_to(admin_id, reply_markup=kb.admin_question(user.id))
+            delivered += 1
+        except TelegramAPIError as e:
+            log.warning("Вопрос не доставлен админу %s (он должен хотя бы раз нажать /start): %s",
+                        admin_id, e)
+    if not delivered:
+        await message.answer("😔 Не получилось передать вопрос. Напиши менеджеру напрямую: "
+                             f"@{config.manager_username}")
+        return
     await state.clear()
     await show(message, "question", texts.QUESTION_SENT, kb.back_to_menu())
 

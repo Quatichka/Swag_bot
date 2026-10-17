@@ -38,7 +38,7 @@ def load_config() -> Config:
         bot_token=token,
         admin_ids=admin_ids,
         admin_chat_id=int(chat_id) if chat_id else None,
-        channel_url=os.getenv("CHANNEL_URL", "https://t.me/swagdsgn"),
+        channel_url=os.getenv("CHANNEL_URL", "https://t.me/SSwag_studio"),
         manager_username=os.getenv("MANAGER_USERNAME", "nils4021").lstrip("@"),
         db_path=BASE_DIR / "data" / "orders.db",
         images_dir=BASE_DIR / "images",

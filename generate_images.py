@@ -95,7 +95,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
         d.line((W // 2 - 30, y, W // 2 + 30, y), fill=BLACK, width=1)
         f = script(58)
         d.text((W / 2 - d.textlength(subtitle, font=f) / 2, y + 22), subtitle, font=f, fill=GRAY)
-        d.text((W / 2 - d.textlength("@SWAGDSGN", font=small) / 2, H - 70), "@SWAGDSGN", font=small, fill=GRAY)
+        d.text((W / 2 - d.textlength("@SSWAG_STUDIO", font=small) / 2, H - 70), "@SSWAG_STUDIO", font=small, fill=GRAY)
         return img
 
     # водяной знак — логотип справа, едва заметный
@@ -126,7 +126,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
 
     # низ
     d.line((72, H - 92, W - 72, H - 92), fill=LINE, width=1)
-    d.text((72, H - 70), "@SWAGDSGN", font=small, fill=GRAY)
+    d.text((72, H - 70), "@SSWAG_STUDIO", font=small, fill=GRAY)
     text_right(d, W - 72, H - 70, "DESIGN STUDIO", small, GRAY)
     return img
 
