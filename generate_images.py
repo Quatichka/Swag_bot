@@ -1,9 +1,9 @@
 """Генерирует картинки-заставки для каждого экрана бота в стиле SWAG Studio:
 белый фон, чёрный текст, минимализм — как логотип студии (assets/logo.png).
 
-Шрифты свои, собраны по мотивам логотипа (папка fonts/):
-  SwagDisplay.ttf — широкий наклонный, как «SW» — заголовки и подписи
-  SwagScript.ttf  — тонкий рукописный, как «swag studio» — подзаголовки
+Шрифты (папка fonts/):
+  SwagDisplay.ttf       — свой широкий наклонный, как «SW» — заголовки и подписи
+  BadScript-Regular.ttf — рукописный Bad Script (Google Fonts, лицензия OFL) — подзаголовки
 
 Запуск: python generate_images.py  ->  картинки появятся в папке images/
 """
@@ -16,7 +16,7 @@ BASE = Path(__file__).parent
 OUT = BASE / "images"
 LOGO = BASE / "assets" / "logo.png"
 DISPLAY = BASE / "fonts" / "SwagDisplay.ttf"
-SCRIPT = BASE / "fonts" / "SwagScript.ttf"
+SCRIPT = BASE / "fonts" / "BadScript-Regular.ttf"
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -99,7 +99,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
         paste(img, logo, (W - logo.width) // 2, top)
         y = top + logo.height + 50
         d.line((W // 2 - 30, y, W // 2 + 30, y), fill=BLACK, width=1)
-        f = fit_script(d, subtitle, W - 160, 60)
+        f = fit_script(d, subtitle, W - 160, 44)
         d.text((W / 2 - d.textlength(subtitle, font=f) / 2, y + 18), subtitle, font=f, fill=GRAY)
         d.text((W / 2 - d.textlength("@SSWAG_STUDIO", font=small) / 2, H - 70), "@SSWAG_STUDIO", font=small, fill=GRAY)
         return img
@@ -128,7 +128,7 @@ def render(mask: Image.Image, title: str | None, subtitle: str, step) -> Image.I
     d.text((72, y), title, font=f, fill=BLACK)
     y = box[3] + 34
     d.line((76, y, 136, y), fill=BLACK, width=2)
-    d.text((76, y + 10), subtitle, font=fit_script(d, subtitle, W - 160, 64), fill=GRAY)
+    d.text((76, y + 10), subtitle, font=fit_script(d, subtitle, W - 160, 46), fill=GRAY)
 
     # низ
     d.line((72, H - 92, W - 72, H - 92), fill=LINE, width=1)

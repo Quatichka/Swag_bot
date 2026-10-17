@@ -77,21 +77,18 @@ python bot.py
 
 ## Шрифты студии
 
-В папке `fonts/` два своих шрифта, собранных по мотивам логотипа. Их можно установить на компьютер
+В папке `fonts/` шрифты для картинок бота. Их можно установить на компьютер
 (двойной клик → «Установить») и использовать в Photoshop, Figma и т.д.
 
 - `SwagDisplay.ttf` — широкий жирный наклонный, как «SW». Только прописные, латиница + кириллица + цифры.
-- `SwagScript.ttf` — тонкий рукописный, как «swag studio». Строчные, латиница + кириллица + цифры.
+- `BadScript-Regular.ttf` — рукописный [Bad Script](https://fonts.google.com/specimen/Bad+Script) для подзаголовков,
+  бесплатный, в том числе для коммерции (лицензия OFL, `fonts/BadScript-OFL.txt`).
 
-Шрифты генерируются кодом: буквы описаны в `fonts/build_display.py` и `fonts/build_script.py`.
+SWAG Display генерируется кодом: буквы описаны в `fonts/build_display.py`.
 Пересобрать после правок (нужен `pip install fonttools`):
 
 ```bash
 python fonts/build_display.py
-```
-
-```bash
-python fonts/build_script.py
 ```
 
 ## Структура
