@@ -128,6 +128,18 @@ async def assign(order_id: int, user_id: int, name: str) -> bool:
         return cur.rowcount == 1
 
 
+async def release(order_id: int, user_id: int) -> bool:
+    """Исполнитель отдаёт заказ: он снова «новый» и без исполнителя. False — если заказ уже не его."""
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute(
+            "UPDATE orders SET status = 'new', assignee_id = NULL, assignee_name = NULL"
+            " WHERE id = ? AND status = 'accepted' AND (assignee_id = ? OR assignee_id IS NULL)",
+            (order_id, user_id))
+        await db.execute("DELETE FROM order_votes WHERE order_id = ?", (order_id,))
+        await db.commit()
+        return cur.rowcount == 1
+
+
 async def votes(order_id: int) -> list[str]:
     async with aiosqlite.connect(config.db_path) as db:
         cur = await db.execute("SELECT name FROM order_votes WHERE order_id = ? ORDER BY rowid", (order_id,))

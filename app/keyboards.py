@@ -108,7 +108,7 @@ def admin_order(order_id: int, status: str, votes: int = 0, need: int | None = N
                       _btn(reject, f"adm:rejected:{order_id}")], [reply])
     if status == "accepted":
         return _rows([_btn("🏁 Выполнен", f"adm:done:{order_id}"),
-                      _btn("❌ Отменить заказ", f"adm:rejected:{order_id}")], [reply])
+                      _btn("🔄 Передать другому", f"adm:release:{order_id}")], [reply])
     return _rows([reply])
 
 

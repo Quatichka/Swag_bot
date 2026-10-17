@@ -1,4 +1,5 @@
 import logging
+from html import escape
 
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
@@ -126,9 +127,9 @@ async def change_status(call: CallbackQuery, bot: Bot) -> None:
         if order.status == "accepted" and await db.transition(order.id, "accepted", "done"):
             new_status = "done"
     elif order.status == "accepted":
-        # исполнитель отменяет взятый заказ
-        if await db.transition(order.id, "accepted", "rejected"):
-            new_status = "rejected"
+        # старая кнопка «Отменить заказ» на уже отправленных карточках — теперь это «Передать другому»
+        await release_order(call)
+        return
     elif order.status == "new" and _in_group(call):
         # в группе отклонение — голосованием: нужно REJECT_VOTES разных голосов
         added, voters = await db.toggle_vote(order.id, call.from_user.id, _admin_name(call))
@@ -159,6 +160,32 @@ async def change_status(call: CallbackQuery, bot: Bot) -> None:
         log.warning("Клиент %s не получил уведомление: %s", order.user_id, e)
         await call.message.answer(f"⚠️ Не удалось уведомить клиента по заказу #{order.id} "
                                   "(возможно, он заблокировал бота).")
+
+
+@router.callback_query(F.data.regexp(r"^adm:release:\d+$"))
+async def release_order(call: CallbackQuery) -> None:
+    """Исполнитель отдаёт заказ: он снова открыт, и взять его может любой."""
+    order = await db.get_order(int(call.data.rsplit(":", 1)[1]))
+    if not order:
+        await call.answer("Заказ не найден", show_alert=True)
+        return
+    if _not_assignee(call, order):
+        await call.answer(f"Заказ взял {order.assignee_name} — передать его может только он",
+                          show_alert=True)
+        await _refresh_card(call, order)
+        return
+    if not await db.release(order.id, call.from_user.id):
+        order = await db.get_order(order.id)
+        await _refresh_card(call, order)
+        await call.answer(f"Заказ уже в статусе «{order.status_label}»", show_alert=True)
+        return
+
+    order = await db.get_order(order.id)
+    await _refresh_card(call, order)
+    await call.answer("Заказ снова открыт")
+    await call.message.reply(
+        f"🔄 <b>Заказ #{order.id} снова открыт</b>\n\n"
+        f"{escape(_admin_name(call))} передал его. Кто возьмёт — жмите «✅ Принять» под карточкой.")
 
 
 # ---------- переписка с клиентом ----------
