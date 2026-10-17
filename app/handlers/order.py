@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (CallbackQuery, InputMediaDocument, InputMediaPhoto, InputMediaVideo,
                            Message)
 
-from app import db, keyboards as kb, texts
+from app import cards, db, keyboards as kb, texts
 from app.routing import deliver
 from app.handlers.common import show_welcome
 from app.screens import show
@@ -195,8 +195,8 @@ async def order_send(call: CallbackQuery, state: FSMContext, bot: Bot) -> None:
 
 
 async def notify_admins(bot: Bot, chat_id: int, order: db.Order, thread_id: int | None = None) -> None:
-    card = await bot.send_message(chat_id, texts.admin_order_card(order), message_thread_id=thread_id,
-                                  reply_markup=kb.admin_order(order.id, order.status))
+    text, markup = await cards.render(order, in_group=chat_id < 0)
+    card = await bot.send_message(chat_id, text, message_thread_id=thread_id, reply_markup=markup)
 
     # фото и видео можно слать одним альбомом, документы — отдельным
     visual = [InputMediaPhoto(media=fid) if t == "photo" else InputMediaVideo(media=fid)

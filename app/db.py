@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+CREATE TABLE IF NOT EXISTS order_votes (
+    order_id INTEGER NOT NULL,
+    user_id  INTEGER NOT NULL,
+    name     TEXT NOT NULL,
+    PRIMARY KEY (order_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -48,6 +54,8 @@ class Order:
     budget: str
     status: str
     created_at: str
+    assignee_id: int | None = None    # кто взял заказ — только он может дальше с ним работать
+    assignee_name: str | None = None
 
     @property
     def status_label(self) -> str:
@@ -64,6 +72,13 @@ async def init_db() -> None:
     config.db_path.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(config.db_path) as db:
         await db.executescript(SCHEMA)
+        # миграция старой базы: колонки исполнителя появились позже
+        cur = await db.execute("PRAGMA table_info(orders)")
+        columns = {row[1] for row in await cur.fetchall()}
+        if "assignee_id" not in columns:
+            await db.execute("ALTER TABLE orders ADD COLUMN assignee_id INTEGER")
+        if "assignee_name" not in columns:
+            await db.execute("ALTER TABLE orders ADD COLUMN assignee_name TEXT")
         await db.commit()
 
 
@@ -92,6 +107,43 @@ async def set_status(order_id: int, status: str) -> None:
     async with aiosqlite.connect(config.db_path) as db:
         await db.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
         await db.commit()
+
+
+async def transition(order_id: int, old: str, new: str) -> bool:
+    """Меняет статус, только если он всё ещё old — защита от двойного нажатия разными людьми."""
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute("UPDATE orders SET status = ? WHERE id = ? AND status = ?", (new, order_id, old))
+        await db.commit()
+        return cur.rowcount == 1
+
+
+async def assign(order_id: int, user_id: int, name: str) -> bool:
+    """Берёт новый заказ в работу. False — если его уже кто-то взял или он закрыт."""
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute(
+            "UPDATE orders SET status = 'accepted', assignee_id = ?, assignee_name = ?"
+            " WHERE id = ? AND status = 'new'", (user_id, name, order_id))
+        await db.execute("DELETE FROM order_votes WHERE order_id = ?", (order_id,))
+        await db.commit()
+        return cur.rowcount == 1
+
+
+async def votes(order_id: int) -> list[str]:
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute("SELECT name FROM order_votes WHERE order_id = ? ORDER BY rowid", (order_id,))
+        return [row[0] for row in await cur.fetchall()]
+
+
+async def toggle_vote(order_id: int, user_id: int, name: str) -> tuple[bool, list[str]]:
+    """Голос за отклонение: повторное нажатие отзывает голос. Возвращает (добавлен ли, все голоса)."""
+    async with aiosqlite.connect(config.db_path) as db:
+        cur = await db.execute("DELETE FROM order_votes WHERE order_id = ? AND user_id = ?", (order_id, user_id))
+        added = cur.rowcount == 0
+        if added:
+            await db.execute("INSERT INTO order_votes (order_id, user_id, name) VALUES (?, ?, ?)",
+                             (order_id, user_id, name))
+        await db.commit()
+    return added, await votes(order_id)
 
 
 async def user_orders(user_id: int, limit: int = 10) -> list[Order]:

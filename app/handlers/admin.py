@@ -1,13 +1,13 @@
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.filters import BaseFilter, Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
-from app import db, keyboards as kb, texts
+from app import cards, db, keyboards as kb, texts
 from app.config import config
 from app.routing import staff_chat_id
 from app.screens import send_screen
@@ -86,28 +86,72 @@ async def cmd_order(message: Message, command: CommandObject | None = None) -> N
 
 # ---------- смена статуса ----------
 
+def _in_group(call: CallbackQuery) -> bool:
+    return call.message.chat.type != "private"
+
+
+async def _refresh_card(call: CallbackQuery, order: db.Order) -> None:
+    text, markup = await cards.render(order, _in_group(call))
+    try:
+        await call.message.edit_text(text, reply_markup=markup)
+    except TelegramBadRequest as e:
+        if "not modified" not in str(e):
+            raise
+
+
+def _not_assignee(call: CallbackQuery, order: db.Order) -> bool:
+    """Заказ уже взял кто-то другой — остальным действия по нему запрещены."""
+    return bool(order.assignee_id and call.from_user.id != order.assignee_id)
+
+
 @router.callback_query(F.data.regexp(r"^adm:(accepted|rejected|done):\d+$"))
 async def change_status(call: CallbackQuery, bot: Bot) -> None:
-    _, status, order_id = call.data.split(":")
+    _, action, order_id = call.data.split(":")
     order = await db.get_order(int(order_id))
     if not order:
         await call.answer("Заказ не найден", show_alert=True)
         return
 
-    allowed = {"accepted": "new", "rejected": "new", "done": "accepted"}
-    if order.status != allowed[status]:
-        await call.answer(f"Заказ уже в статусе «{order.status_label}»", show_alert=True)
-        await call.message.edit_text(texts.admin_order_card(order),
-                                     reply_markup=kb.admin_order(order.id, order.status))
+    if _not_assignee(call, order):
+        await call.answer(f"Заказ взял {order.assignee_name} — действовать по нему может только он",
+                          show_alert=True)
+        await _refresh_card(call, order)
         return
 
-    await db.set_status(order.id, status)
-    order.status = status
-    await call.message.edit_text(texts.admin_order_card(order, handled_by=_admin_name(call)),
-                                 reply_markup=kb.admin_order(order.id, status))
+    new_status = None
+    if action == "accepted":
+        if await db.assign(order.id, call.from_user.id, _admin_name(call)):
+            new_status = "accepted"
+    elif action == "done":
+        if order.status == "accepted" and await db.transition(order.id, "accepted", "done"):
+            new_status = "done"
+    elif order.status == "accepted":
+        # исполнитель отменяет взятый заказ
+        if await db.transition(order.id, "accepted", "rejected"):
+            new_status = "rejected"
+    elif order.status == "new" and _in_group(call):
+        # в группе отклонение — голосованием: нужно REJECT_VOTES разных голосов
+        added, voters = await db.toggle_vote(order.id, call.from_user.id, _admin_name(call))
+        need = config.reject_votes
+        if len(voters) < need:
+            await _refresh_card(call, order)
+            await call.answer(f"{'Голос за отклонение учтён' if added else 'Голос отозван'}: "
+                              f"{len(voters)}/{need}")
+            return
+        if await db.transition(order.id, "new", "rejected"):
+            new_status = "rejected"
+    elif order.status == "new":
+        if await db.transition(order.id, "new", "rejected"):
+            new_status = "rejected"
+
+    order = await db.get_order(order.id)
+    await _refresh_card(call, order)
+    if not new_status:
+        await call.answer(f"Заказ уже в статусе «{order.status_label}»", show_alert=True)
+        return
     await call.answer(f"Статус: {order.status_label}")
 
-    image, template = texts.STATUS_NOTIFY[status]
+    image, template = texts.STATUS_NOTIFY[new_status]
     caption = template.format(order_id=order.id, manager=config.manager_username)
     try:
         await send_screen(bot, order.user_id, image, caption, kb.after_order())
@@ -126,6 +170,10 @@ async def start_reply(call: CallbackQuery, state: FSMContext) -> None:
         order = await db.get_order(int(target))
         if not order:
             await call.answer("Заказ не найден", show_alert=True)
+            return
+        if _not_assignee(call, order):
+            await call.answer(f"Заказ взял {order.assignee_name} — писать клиенту может только он",
+                              show_alert=True)
             return
         await state.update_data(reply_user=order.user_id, reply_order=order.id)
         who = f"клиенту по заказу #{order.id}"
@@ -150,6 +198,12 @@ async def send_reply(message: Message, state: FSMContext, bot: Bot) -> None:
     data = await state.get_data()
     await state.clear()
     order_id = data.get("reply_order")
+    if order_id:  # пока писали ответ, заказ мог взять кто-то другой
+        order = await db.get_order(order_id)
+        if order and order.assignee_id and order.assignee_id != message.from_user.id:
+            await message.answer(f"⛔ Заказ #{order_id} взял {order.assignee_name} — "
+                                 "писать клиенту может только он. Сообщение не отправлено.")
+            return
     header = (f"<b>💬 Сообщение от SWAG Studio по заказу #{order_id}</b>" if order_id
               else "<b>💬 Ответ от SWAG Studio</b>")
     try:

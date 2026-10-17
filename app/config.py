@@ -17,6 +17,7 @@ class Config:
     manager_username: str
     db_path: Path
     images_dir: Path
+    reject_votes: int  # сколько голосов в группе нужно, чтобы отклонить заказ
 
     @property
     def notify_targets(self) -> tuple[int, ...]:
@@ -42,6 +43,7 @@ def load_config() -> Config:
         manager_username=os.getenv("MANAGER_USERNAME", "nils4021").lstrip("@"),
         db_path=BASE_DIR / "data" / "orders.db",
         images_dir=BASE_DIR / "images",
+        reject_votes=max(1, int(os.getenv("REJECT_VOTES", "5"))),
     )
 
 

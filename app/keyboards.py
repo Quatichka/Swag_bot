@@ -99,13 +99,16 @@ def after_order() -> InlineKeyboardMarkup:
     )
 
 
-def admin_order(order_id: int, status: str) -> InlineKeyboardMarkup | None:
+def admin_order(order_id: int, status: str, votes: int = 0, need: int | None = None) -> InlineKeyboardMarkup:
+    """Кнопки под карточкой заказа. need — сколько голосов нужно для отклонения (только в группе)."""
     reply = _btn("💬 Написать клиенту", f"adm:reply:{order_id}")
     if status == "new":
+        reject = f"❌ Отклонить ({votes}/{need})" if need else "❌ Отклонить"
         return _rows([_btn("✅ Принять", f"adm:accepted:{order_id}"),
-                      _btn("❌ Отклонить", f"adm:rejected:{order_id}")], [reply])
+                      _btn(reject, f"adm:rejected:{order_id}")], [reply])
     if status == "accepted":
-        return _rows([_btn("🏁 Выполнен", f"adm:done:{order_id}")], [reply])
+        return _rows([_btn("🏁 Выполнен", f"adm:done:{order_id}"),
+                      _btn("❌ Отменить заказ", f"adm:rejected:{order_id}")], [reply])
     return _rows([reply])
 
 

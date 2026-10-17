@@ -108,7 +108,7 @@ def order_summary(data: dict) -> str:
     )
 
 
-def admin_order_card(order: Order, handled_by: str | None = None) -> str:
+def admin_order_card(order: Order, voters: list[str] | None = None, need: int | None = None) -> str:
     links = [a[1] for a in order.attachments if a[0] == "link"]
     files = len(order.attachments) - len(links)
     text = (
@@ -124,8 +124,10 @@ def admin_order_card(order: Order, handled_by: str | None = None) -> str:
     if links:
         text += "\n\n🔗 <b>Ссылки / комментарии:</b>\n" + "\n".join(
             escape(cut(link, 300)) for link in links[:10])
-    if handled_by:
-        text += f"\n\n<i>Последнее действие: {escape(handled_by)}</i>"
+    if order.assignee_name:
+        text += f"\n\n🛠 <b>Взял:</b> {escape(order.assignee_name)} — действия по заказу доступны только ему"
+    if order.status == "new" and need and voters:
+        text += f"\n\n❌ <b>За отклонение:</b> {len(voters)}/{need} — " + ", ".join(escape(v) for v in voters)
     return text
 
 
